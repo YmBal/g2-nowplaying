@@ -9,7 +9,7 @@ import {
 // ── Config ──────────────────────────────────────────────────────
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxK__w9uR7ETSXSDCP8WYVie0cNes5fj_WwDGpHnocoOvJCHLbxSd1GnOIptog6A_ry/exec'
 const PROGRESS_BAR_LEN = 25
-const DEFAULT_DURATION = 210 // 3.5 min fallback if no duration available
+const DEFAULT_DURATION = 210
 
 // ── State ───────────────────────────────────────────────────────
 let bridge: any = null
@@ -18,17 +18,24 @@ let track = {
   artist: '',
   album: '',
   isPlaying: false,
-  duration: 0,    // seconds, from server
-  position: 0,    // seconds, from server
+  duration: 0,
+  position: 0,
 }
-let trackStartTime: number | null = null  // local Date.now() when track was last fetched
-let trackStartPosition: number = 0       // position at that fetch time
+let trackStartTime: number | null = null
+let trackStartPosition: number = 0
 let debounce = false
+
+// Button menu state
+const BUTTONS = [
+  { label: 'Previous',   icon: '\u25C0\u25C0', cmd: 'prev'      },
+  { label: 'Play/Pause', icon: '\u25B6/\u25A0', cmd: 'playpause' },
+  { label: 'Next',       icon: '\u25B6\u25B6', cmd: 'next'      },
+]
+let selectedIndex = 0  // which button is highlighted
 
 // ── Progress bar ────────────────────────────────────────────────
 function buildProgressBar(): string {
   const duration = track.duration > 0 ? track.duration : DEFAULT_DURATION
-  // Estimate current position using elapsed time since last fetch
   let position = track.position
   if (track.isPlaying && trackStartTime !== null) {
     const elapsed = (Date.now() - trackStartTime) / 1000
@@ -57,26 +64,35 @@ function elapsedDisplay(): string {
 }
 
 // ── Glasses display ─────────────────────────────────────────────
+
+function headerContent(): string {
+  const s = track.isPlaying ? '\u25B6' : '\u25A0'
+  const elapsed = elapsedDisplay()
+  const label = `${s} Now Playing`
+  const spaces = Math.max(1, 28 - label.length - elapsed.length)
+  return label + ' '.repeat(spaces) + elapsed
+}
+
 function trackContent(): string {
   const bar = buildProgressBar()
   let t = ''
   t += `${track.title}\n`
   if (track.artist) t += `${track.artist}\n`
   if (track.album) t += `${track.album}\n`
-  t += '\n'
   t += `${bar}\n`
   t += '\n'
-  t += '\u2191Prev  \u25CFPlay/Pause  \u2193Next'
-  return t
-}
 
-function headerContent(): string {
-  const s = track.isPlaying ? '\u25B6' : '\u25A0' // ▶ or ■
-  const elapsed = elapsedDisplay()
-  // Pad so elapsed time is right-aligned (canvas ~576px, header ~35px tall)
-  const label = `${s} Now Playing`
-  const spaces = Math.max(1, 28 - label.length - elapsed.length)
-  return label + ' '.repeat(spaces) + elapsed
+  // Render button row with > cursor on selected button
+  for (let i = 0; i < BUTTONS.length; i++) {
+    const btn = BUTTONS[i]
+    if (i === selectedIndex) {
+      t += `> ${btn.icon} ${btn.label}`
+    } else {
+      t += `  ${btn.icon} ${btn.label}`
+    }
+    if (i < BUTTONS.length - 1) t += '  '
+  }
+  return t
 }
 
 async function updateDisplay() {
@@ -121,51 +137,47 @@ async function fetchNowPlaying() {
       track.isPlaying = d.isPlaying ?? true
       const newDuration = Number(d.duration || 0)
       const newPosition = Number(d.position || 0)
-      // Update position tracking: store server position and local timestamp
       if (changed || Math.abs(newPosition - track.position) > 5) {
         trackStartPosition = newPosition
         trackStartTime = Date.now()
       }
       track.duration = newDuration
       track.position = newPosition
-      if (changed) {
-        updatePhoneUI()
-      }
-      // Always update display to refresh progress bar
+      if (changed) updatePhoneUI()
       updateDisplay()
     }
-  } catch (_) { /* network hiccup, ignore */ }
+  } catch (_) {}
 }
 
-// ── Input events from G2 ──────────────────────────────────────
-// Standard G2 control pattern:
-//   CLICK (0/undefined)  = Play/Pause toggle
-//   SCROLL_BOTTOM (2)    = Next track
-//   SCROLL_TOP (1)       = Previous track
-//   DOUBLE_CLICK (3)     = Exit app
+// ── Input events from G2 / R1 ──────────────────────────────────
+// Controls:
+//   SCROLL_BOTTOM (2) = Move cursor right (next button)
+//   SCROLL_TOP (1)    = Move cursor left (prev button)
+//   CLICK (0)         = Confirm selected button
+//   DOUBLE_CLICK (3)  = Exit app
+
 function handleEvent(eventType: number | undefined) {
   if (debounce) return
   debounce = true
-  setTimeout(() => { debounce = false }, 350)
+  setTimeout(() => { debounce = false }, 300)
 
-  if (eventType === OsEventTypeList.CLICK_EVENT || eventType === undefined || eventType === 0) {
-    // Single tap = Play/Pause
-    track.isPlaying = !track.isPlaying
-    // Reset position tracking so progress bar reflects new state
-    trackStartPosition = track.position
-    trackStartTime = Date.now()
-    flashFeedback(track.isPlaying ? '\u25B6 Playing' : '\u25A0 Paused')
-    postCommand('playpause')
-  } else if (eventType === OsEventTypeList.SCROLL_BOTTOM_EVENT || eventType === 2) {
-    // Scroll down = Next track
-    flashFeedback('\u2193 Next')
-    postCommand('next')
+  if (eventType === OsEventTypeList.SCROLL_BOTTOM_EVENT || eventType === 2) {
+    // Scroll down/right = move selection to next button
+    selectedIndex = (selectedIndex + 1) % BUTTONS.length
+    updateDisplay()
+
   } else if (eventType === OsEventTypeList.SCROLL_TOP_EVENT || eventType === 1) {
-    // Scroll up = Previous track
-    flashFeedback('\u2191 Prev')
-    postCommand('prev')
+    // Scroll up/left = move selection to previous button
+    selectedIndex = (selectedIndex - 1 + BUTTONS.length) % BUTTONS.length
+    updateDisplay()
+
+  } else if (eventType === OsEventTypeList.CLICK_EVENT || eventType === undefined || eventType === 0) {
+    // Tap = confirm the currently selected button
+    const btn = BUTTONS[selectedIndex]
+    executeButton(btn)
+
   } else if (eventType === OsEventTypeList.DOUBLE_CLICK_EVENT || eventType === 3) {
-    // Double tap = Exit app
+    // Double tap = exit
     flashFeedback('Goodbye...')
     setTimeout(() => {
       if (bridge && bridge.shutDownPageContainer) {
@@ -175,11 +187,30 @@ function handleEvent(eventType: number | undefined) {
   }
 }
 
+function executeButton(btn: typeof BUTTONS[0]) {
+  switch (btn.cmd) {
+    case 'prev':
+      flashFeedback('\u25C0\u25C0 Previous')
+      postCommand('prev')
+      break
+    case 'playpause':
+      track.isPlaying = !track.isPlaying
+      trackStartPosition = track.position
+      trackStartTime = Date.now()
+      flashFeedback(track.isPlaying ? '\u25B6 Playing' : '\u25A0 Paused')
+      postCommand('playpause')
+      break
+    case 'next':
+      flashFeedback('\u25B6\u25B6 Next')
+      postCommand('next')
+      break
+  }
+}
+
 async function postCommand(cmd: string) {
   try {
     await fetch(`${APPS_SCRIPT_URL}?action=musicCommand&command=${cmd}&_t=${Date.now()}`)
   } catch (_) {}
-  // Refresh after short delay
   setTimeout(fetchNowPlaying, 1500)
 }
 
@@ -205,15 +236,14 @@ function setupPhoneUI() {
     track.title = (document.getElementById('track-title') as HTMLInputElement)?.value || 'No track'
     track.artist = (document.getElementById('track-artist') as HTMLInputElement)?.value || ''
     track.album = (document.getElementById('track-album') as HTMLInputElement)?.value || ''
-    // Push to Apps Script so StudyBudget can read it too
     pushTrackToServer()
     updateDisplay()
     updatePhoneUI()
   })
 
   playPauseBtn?.addEventListener('click', () => { track.isPlaying = !track.isPlaying; updateDisplay(); updatePhoneUI() })
-  nextBtn?.addEventListener('click', () => { flashFeedback('\u2193 Next'); postCommand('next') })
-  prevBtn?.addEventListener('click', () => { flashFeedback('\u2191 Prev'); postCommand('prev') })
+  nextBtn?.addEventListener('click', () => { flashFeedback('\u25B6\u25B6 Next'); postCommand('next') })
+  prevBtn?.addEventListener('click', () => { flashFeedback('\u25C0\u25C0 Prev'); postCommand('prev') })
 }
 
 async function pushTrackToServer() {
@@ -234,6 +264,9 @@ async function pushTrackToServer() {
 // ── Main ────────────────────────────────────────────────────────
 async function init() {
   bridge = await waitForEvenAppBridge()
+
+  // Start with Play/Pause selected (middle button)
+  selectedIndex = 1
 
   const result = await bridge.createStartUpPageContainer(
     new CreateStartUpPageContainer({
@@ -264,18 +297,9 @@ async function init() {
 
   setupPhoneUI()
 
-  // Poll for now playing info + update progress bar every 3 seconds
-  setInterval(async () => {
-    await fetchNowPlaying()
-  }, 3000)
-
-  // Also update just the display (progress bar + elapsed time) every 3 seconds
-  // The fetchNowPlaying already calls updateDisplay, so this covers cases
-  // when no fetch happens (we still want the bar to animate)
-  setInterval(() => {
-    if (bridge) updateDisplay()
-  }, 3000)
-
+  // Poll for now playing + update progress bar every 3 seconds
+  setInterval(fetchNowPlaying, 3000)
+  setInterval(() => { if (bridge) updateDisplay() }, 3000)
   fetchNowPlaying()
 }
 
