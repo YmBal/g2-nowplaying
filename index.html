@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Built with Perplexity Computer — https://www.perplexity.ai/computer -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Now Playing — Even Hub</title>
+
+  <style>
+    /* -----------------------------------------------------------------------
+       Design: dark, minimal, matches Even Realities app aesthetic
+    ----------------------------------------------------------------------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0d0d0f;
+      --surface:     #17171c;
+      --surface-2:   #202028;
+      --border:      #2a2a36;
+      --accent:      #7c6af7;
+      --accent-dim:  #4f45a8;
+      --text:        #e8e8f0;
+      --text-muted:  #7c7c94;
+      --green:       #3fcf8e;
+      --red:         #f86e6e;
+      --radius:      10px;
+      --font:        system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 40px;
+      gap: 18px;
+      min-height: 100%;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background: var(--accent-dim);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+
+    .logo svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .header-text h1 {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .header-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    /* Status banner */
+    .status {
+      font-size: 13px;
+      font-weight: 500;
+      padding: 9px 14px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+      transition: color 0.2s;
+    }
+
+    .status.ok    { color: var(--green); border-color: #1e4735; }
+    .status.error { color: var(--red);   border-color: #4a2020; }
+
+    /* Now-playing display preview */
+    .now-playing-preview {
+      background: #0a0a10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.8;
+      color: #d0d0e0;
+      margin-bottom: 16px;
+    }
+
+    .now-playing-preview .np-heading {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .now-playing-preview .np-controls {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-bottom: 14px;
+    }
+
+    .badge.playing { background: #1a3d2b; color: var(--green); }
+    .badge.paused  { background: #2d2820; color: #e0a040; }
+
+    /* Form fields */
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    .field input {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 9px 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .field input:focus {
+      border-color: var(--accent);
+    }
+
+    .field input::placeholder { color: var(--text-muted); opacity: 0.6; }
+
+    /* Control buttons */
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 10px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 18px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      text-align: center;
+    }
+
+    .btn:hover   { background: var(--border); }
+    .btn:active  { background: var(--accent-dim); border-color: var(--accent); }
+
+    .btn.primary {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+    }
+
+    .btn.primary:hover { background: var(--accent); }
+
+    /* Send button */
+    .send-btn {
+      width: 100%;
+      padding: 11px;
+      border-radius: 8px;
+      border: 1px solid var(--accent);
+      background: var(--accent-dim);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 4px;
+    }
+
+    .send-btn:hover  { background: var(--accent); }
+    .send-btn:active { background: #6456d6; }
+
+    /* Last action */
+    #last-action {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+      min-height: 20px;
+      transition: color 0.2s;
+      margin-top: 10px;
+    }
+
+    #last-action.flash { color: var(--accent); }
+
+    /* Gesture guide */
+    .gesture-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .gesture-table td {
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .gesture-table tr:last-child td { border-bottom: none; }
+
+    .gesture-table td:first-child {
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+      width: 140px;
+    }
+
+    .gesture-table td:last-child {
+      color: var(--text-muted);
+    }
+
+    /* Footer */
+    footer {
+      margin-top: auto;
+      padding-top: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <!-- Music note SVG logo -->
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Now Playing">
+        <path d="M9 18V6l12-2v12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="6" cy="18" r="3" stroke="white" stroke-width="2"/>
+        <circle cx="18" cy="16" r="3" stroke="white" stroke-width="2"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <h1>Now Playing</h1>
+      <p>Even Hub Plugin for G2 Glasses</p>
+    </div>
+  </div>
+
+  <!-- Connection status -->
+  <div id="status" class="status error">Connecting to glasses…</div>
+
+  <!-- Glasses preview card -->
+  <div class="card">
+    <div class="card-label">Glasses Display Preview</div>
+    <div class="now-playing-preview" id="glasses-preview">
+      <div class="np-heading" id="prev-heading">■ Paused</div>
+      <div id="prev-title">No track</div>
+      <div id="prev-artist">—</div>
+      <div id="prev-album"></div>
+      <div class="np-controls">◀ Prev  │  ■ Play/Pause  │  Next ▶</div>
+    </div>
+    <div id="ph-playstate" class="badge paused">⏸ Paused</div>
+    <p id="last-action"></p>
+  </div>
+
+  <!-- Manual track input card -->
+  <div class="card">
+    <div class="card-label">Track Info</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">
+      Updates automatically via Media Session API when available.
+      Enter manually below as a fallback.
+    </p>
+
+    <div class="field">
+      <label for="track-title">Song Title</label>
+      <input type="text" id="track-title" placeholder="e.g. Bohemian Rhapsody" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="track-artist">Artist</label>
+      <input type="text" id="track-artist" placeholder="e.g. Queen" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="track-album">Album (optional)</label>
+      <input type="text" id="track-album" placeholder="e.g. A Night at the Opera" autocomplete="off" />
+    </div>
+
+    <button class="send-btn" id="send-btn">Send to G2</button>
+
+    <!-- Playback controls -->
+    <div class="controls">
+      <button class="btn" id="prev-btn"      title="Previous track">⏮</button>
+      <button class="btn" id="playpause-btn" title="Play / Pause">⏯</button>
+      <button class="btn" id="next-btn"      title="Next track">⏭</button>
+    </div>
+  </div>
+
+  <!-- Gesture reference card -->
+  <div class="card">
+    <div class="card-label">R1 Ring &amp; G2 Gesture Map</div>
+    <table class="gesture-table">
+      <tbody>
+        <tr>
+          <td>Single tap</td>
+          <td>Next track</td>
+        </tr>
+        <tr>
+          <td>Double tap</td>
+          <td>Play / Pause toggle</td>
+        </tr>
+        <tr>
+          <td>Scroll to bottom</td>
+          <td>Previous track</td>
+        </tr>
+        <tr>
+          <td>Foreground enter</td>
+          <td>Refresh display</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>
+    <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer">
+      Created with Perplexity Computer
+    </a>
+  </footer>
+
+  <script type="module" src="/src/main.ts"></script>
+
+</body>
+</html>

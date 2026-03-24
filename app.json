@@ -1,0 +1,11 @@
+{
+  "package_id": "com.jay.nowplaying",
+  "edition": "202603",
+  "name": "Now Playing",
+  "version": "1.0.0",
+  "min_app_version": "0.1.0",
+  "tagline": "See what's playing on your G2",
+  "description": "Displays currently playing music on your Even G2 glasses with playback controls via R1 ring gestures. Tap right for next, tap left for previous, double tap for play/pause.",
+  "author": "Jay",
+  "entrypoint": "index.html"
+}
